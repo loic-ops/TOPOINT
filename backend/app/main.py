@@ -1,4 +1,5 @@
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -11,15 +12,25 @@ from app.database import Base, engine
 from app.routers import admin, auth, pointage
 
 BASE_DIR = Path(settings.BASE_DIR)
-MOBILE_DIR = BASE_DIR.parent / "mobile-app" / "dist"
-ADMIN_DIR = BASE_DIR.parent / "admin-app" / "dist"
+FRONTEND_MOBILE_DIR = BASE_DIR.parent / "frontend-mobile" / "dist"
+FRONTEND_ADMIN_DIR = BASE_DIR.parent / "frontend-admin" / "dist"
 
-app = FastAPI(title="  Pointage", version="2.0.0")
 
+@asynccontextmanager
+async def lifespan(app):
+    Base.metadata.create_all(bind=engine)
+    yield
+
+
+app = FastAPI(title="  Pointage", version="2.0.0", lifespan=lifespan)
+
+# CORS — en mode demo, les origines Render des frontends sont configurées
+# via la variable CORS_ORIGINS. En local, on autorise tout.
+_cors_origins = settings.CORS_ORIGINS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials=(_cors_origins != ["*"]),
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -29,9 +40,10 @@ app.include_router(pointage.router)
 app.include_router(admin.router)
 
 
-@app.on_event("startup")
-def startup():
-    Base.metadata.create_all(bind=engine)
+# Health check pour Render (racine) et pour l'app (/api/health)
+@app.get("/health")
+def health_root():
+    return {"status": "ok", "version": "2.0.0"}
 
 
 @app.get("/api/health")
@@ -39,27 +51,31 @@ def health():
     return {"status": "ok", "version": "2.0.0"}
 
 
-if MOBILE_DIR.exists():
-    app.mount("/mobile/assets", StaticFiles(directory=MOBILE_DIR / "assets"), name="mobile-assets")
+# ── Service des fichiers statiques (uniquement en mode local avec dist/) ──
+# En mode cloud (Render Static Sites), les frontends sont servis
+# directement par Render, pas par le backend.
+
+if FRONTEND_MOBILE_DIR.exists():
+    app.mount("/mobile/assets", StaticFiles(directory=FRONTEND_MOBILE_DIR / "assets"), name="mobile-assets")
 
     @app.get("/mobile/{full_path:path}")
     def serve_mobile(full_path: str):
-        file_path = MOBILE_DIR / full_path
+        file_path = FRONTEND_MOBILE_DIR / full_path
         if file_path.exists() and file_path.is_file():
             return FileResponse(file_path)
-        return FileResponse(MOBILE_DIR / "index.html")
+        return FileResponse(FRONTEND_MOBILE_DIR / "index.html")
 
     @app.get("/")
     def root():
-        return FileResponse(MOBILE_DIR / "index.html")
+        return FileResponse(FRONTEND_MOBILE_DIR / "index.html")
 
 
-if ADMIN_DIR.exists():
-    app.mount("/admin/assets", StaticFiles(directory=ADMIN_DIR / "assets"), name="admin-assets")
+if FRONTEND_ADMIN_DIR.exists():
+    app.mount("/admin/assets", StaticFiles(directory=FRONTEND_ADMIN_DIR / "assets"), name="admin-assets")
 
     @app.get("/admin/{full_path:path}")
     def serve_admin(full_path: str):
-        file_path = ADMIN_DIR / full_path
+        file_path = FRONTEND_ADMIN_DIR / full_path
         if file_path.exists() and file_path.is_file():
             return FileResponse(file_path)
-        return FileResponse(ADMIN_DIR / "index.html")
+        return FileResponse(FRONTEND_ADMIN_DIR / "index.html")

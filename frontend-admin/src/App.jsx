@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   loginPin,
+  logout,
+  setAuthErrorHandler,
   getDashboard,
   getEmployees,
   createEmployee,
@@ -9,6 +11,7 @@ import {
   unarchiveEmployee,
   getPointages,
   forceClockout,
+  exportPointagesPDF,
 } from "./api.js";
 
 function formatDuration(seconds) {
@@ -721,6 +724,7 @@ function PresencesPage({ search }) {
 
 function PointagesPage({ search }) {
   const [pointages, setPointages] = useState([]);
+  const [exporting, setExporting] = useState(false);
   const [filters, setFilters] = useState({
     date_from: "",
     date_to: "",
@@ -743,10 +747,31 @@ function PointagesPage({ search }) {
     load();
   }, [load]);
 
+  const handleExportPDF = async () => {
+    setExporting(true);
+    try {
+      const params = {};
+      if (filters.date_from) params.date_from = filters.date_from;
+      if (filters.date_to) params.date_to = filters.date_to;
+      await exportPointagesPDF(params);
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="page">
       <div className="page-header">
         <h1 className="page-title">Historique des pointages</h1>
+        <button
+          className="btn btn-primary"
+          onClick={handleExportPDF}
+          disabled={exporting}
+        >
+          {exporting ? "Export..." : "Exporter PDF"}
+        </button>
       </div>
 
       <div className="table-card">
@@ -869,10 +894,23 @@ export default function App() {
   const [page, setPage] = useState("dashboard");
   const [search, setSearch] = useState("");
 
+  useEffect(() => {
+    setAuthErrorHandler(() => {
+      setEmployee(null);
+      setPage("dashboard");
+    });
+  }, []);
+
   if (!employee) return <LoginScreen onLogin={(emp) => {
     localStorage.setItem("adminEmployee", JSON.stringify(emp));
     setEmployee(emp);
   }} />;
+
+  const handleLogout = () => {
+    logout();
+    setEmployee(null);
+    setPage("dashboard");
+  };
 
   const crumbs = {
     dashboard: "Tableau de bord",
@@ -899,6 +937,13 @@ export default function App() {
           <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>
             {employee.first_name} {employee.last_name}
           </span>
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={handleLogout}
+            style={{ marginLeft: 8, fontSize: "0.8rem" }}
+          >
+            Déconnexion
+          </button>
         </div>
 
         {page === "dashboard" && <DashboardPage search={search} />}

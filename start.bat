@@ -22,13 +22,13 @@ echo Installation des dépendances Python...
 pip install -q -r "%DIR%backend\requirements.txt"
 
 REM 3. Build frontends
-if not exist "%DIR%mobile-app\dist" (
+if not exist "%DIR%frontend-mobile\dist" (
     echo Build mobile app...
-    cd /d "%DIR%mobile-app" && call npm install && call npm run build
+    cd /d "%DIR%frontend-mobile" && call npm install && call npm run build
 )
-if not exist "%DIR%admin-app\dist" (
+if not exist "%DIR%frontend-admin\dist" (
     echo Build admin app...
-    cd /d "%DIR%admin-app" && call npm install && call npm run build
+    cd /d "%DIR%frontend-admin" && call npm install && call npm run build
 )
 
 REM 4. Seed base

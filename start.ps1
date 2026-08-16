@@ -21,16 +21,16 @@ Write-Host "Installation des dépendances Python..."
 python -m pip install -q -r "$DIR\backend\requirements.txt"
 
 # 3. Build frontends
-if (-Not (Test-Path "$DIR\mobile-app\dist")) {
+if (-Not (Test-Path "$DIR\frontend-mobile\dist")) {
     Write-Host "Build mobile app..."
-    Set-Location "$DIR\mobile-app"
+    Set-Location "$DIR\frontend-mobile"
     npm install
     npm run build
 }
 
-if (-Not (Test-Path "$DIR\admin-app\dist")) {
+if (-Not (Test-Path "$DIR\frontend-admin\dist")) {
     Write-Host "Build admin app..."
-    Set-Location "$DIR\admin-app"
+    Set-Location "$DIR\frontend-admin"
     npm install
     npm run build
 }

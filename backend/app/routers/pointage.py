@@ -12,6 +12,7 @@ from app.schemas import (
     CurrentStatusResponse,
 )
 from app.utils import create_session_token
+from app.utils.ip import get_client_ip
 
 router = APIRouter(prefix="/api/pointage", tags=["pointage"])
 
@@ -55,7 +56,7 @@ def clock_in(
     if has_clocked_today(db, employee.id):
         raise HTTPException(400, "Vous avez déjà pointé aujourd'hui")
 
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = get_client_ip(request)
 
     pointage = Pointage(
         employee_id=employee.id,

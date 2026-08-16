@@ -39,6 +39,8 @@ env/pyvenv.cfg
 pointage.db
 *.db
 *.db-journal
+*.db-shm
+*.db-wal
 export.xlsx
 *.xlsx
 
@@ -47,9 +49,10 @@ export.xlsx
 htmlcov/
 .pytest_cache/
 
-# Environment variables
+# Environment variables (but keep .env.example)
 .env
-.env.*
+.env.local
+.env.production
 
 # Generated files
 *.egg-info/

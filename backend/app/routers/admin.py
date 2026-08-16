@@ -1,6 +1,13 @@
 from datetime import datetime, timedelta
+from io import BytesIO
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import mm
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -227,3 +234,50 @@ def force_clockout(
     db.commit()
     db.refresh(pointage)
     return pointage
+
+
+@router.get("/pointages/export-pdf")
+def export_pointages_pdf(
+    request: Request,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    employee_id: int | None = None,
+    admin: Employee = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    from app.pdf_export import build_timesheet_pdf
+
+    query = db.query(Pointage)
+
+    if employee_id:
+        query = query.filter(Pointage.employee_id == employee_id)
+    if date_from:
+        query = query.filter(Pointage.clock_in >= date_from)
+    if date_to:
+        query = query.filter(Pointage.clock_in <= date_to + "T23:59:59")
+
+    pointages_raw = query.order_by(Pointage.clock_in).all()
+
+    class Row:
+        pass
+
+    rows = []
+    for p in pointages_raw:
+        emp = db.query(Employee).filter(Employee.id == p.employee_id).first()
+        r = Row()
+        r.employee_name = f"{emp.first_name} {emp.last_name}" if emp else ""
+        r.employee_matricule = emp.matricule if emp else ""
+        r.clock_in = p.clock_in
+        r.clock_out = p.clock_out
+        r.total_break_seconds = p.total_break_seconds
+        r.status = p.status
+        rows.append(r)
+
+    pdf_bytes = build_timesheet_pdf(rows, date_from, date_to)
+
+    filename = f"pointages_{date_from or 'all'}_{date_to or 'all'}.pdf"
+    return StreamingResponse(
+        iter([pdf_bytes]),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

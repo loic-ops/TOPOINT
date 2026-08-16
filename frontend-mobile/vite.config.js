@@ -25,12 +25,23 @@ export default defineConfig({
       },
     }),
   ],
-  base: "/mobile/",
+  base: process.env.VITE_BASE_PATH || "/mobile/",
   server: {
     host: "0.0.0.0",
     port: 5173,
     proxy: {
-      "/api": "http://localhost:8000",
+      "/api": {
+        target: "http://localhost:8000",
+        changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on("proxyReq", (proxyReq, req) => {
+            // Injecter la vraie IP du client dans X-Forwarded-For
+            // pour que get_client_ip() côté backend la lise correctement
+            const clientIp = req.socket.remoteAddress?.replace(/^::ffff:/, "") || "unknown";
+            proxyReq.setHeader("X-Forwarded-For", clientIp);
+          });
+        },
+      },
     },
   },
 });

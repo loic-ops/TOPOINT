@@ -17,13 +17,13 @@ source "$DIR/venv/bin/activate"
 pip install -q -r "$DIR/backend/requirements.txt"
 
 # 3. Build frontends
-if [ ! -d "$DIR/mobile-app/dist" ]; then
+if [ ! -d "$DIR/frontend-mobile/dist" ]; then
     echo "Build mobile app..."
-    cd "$DIR/mobile-app" && npm install && npm run build
+    cd "$DIR/frontend-mobile" && npm install && npm run build
 fi
-if [ ! -d "$DIR/admin-app/dist" ]; then
+if [ ! -d "$DIR/frontend-admin/dist" ]; then
     echo "Build admin app..."
-    cd "$DIR/admin-app" && npm install && npm run build
+    cd "$DIR/frontend-admin" && npm install && npm run build
 fi
 
 # 4. Seed base
@@ -50,4 +50,4 @@ echo "  → Ouvre http://${LOCAL_IP}:8000/mobile/"
 echo "=========================================="
 echo ""
 
-exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --proxy-headers --forwarded-allow-ips='*'

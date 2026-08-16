@@ -8,6 +8,7 @@ from app.database import get_db
 from app.models import Employee, PinAttempt
 from app.schemas import PinLoginRequest, TokenResponse, EmployeeResponse
 from app.utils import create_session_token, hash_pin
+from app.utils.ip import get_client_ip
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -28,7 +29,7 @@ def check_rate_limit(db: Session, ip: str):
 
 @router.post("/pin", response_model=TokenResponse)
 def login_pin(body: PinLoginRequest, request: Request, db: Session = Depends(get_db)):
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = get_client_ip(request)
     check_rate_limit(db, client_ip)
 
     matricule = body.matricule.strip().upper()
