@@ -51,21 +51,11 @@ def health():
     return {"status": "ok", "version": "2.0.0"}
 
 
-# ── Service des fichiers statiques (uniquement en mode local avec dist/) ──
-# En mode cloud (Render Static Sites), les frontends sont servis
-# directement par Render, pas par le backend.
+# ── Service des fichiers statiques ──────────────────────────
+# En Docker : les frontends existent dans le container → on les sert
+# Sans Docker (Render sans Dockerfile) : pas de dist/ → endpoint JSON
 
-if settings.DEPLOY_MODE == "demo":
-    # En mode cloud : la racine retourne un JSON (les frontends sont sur des URLs séparées)
-    @app.get("/")
-    def root():
-        return {
-            "app": "  Pointage API",
-            "version": "2.0.0",
-            "docs": "/docs",
-            "health": "/health",
-        }
-elif FRONTEND_MOBILE_DIR.exists():
+if FRONTEND_MOBILE_DIR.exists():
     app.mount("/mobile/assets", StaticFiles(directory=FRONTEND_MOBILE_DIR / "assets"), name="mobile-assets")
 
     @app.get("/mobile/{full_path:path}")
@@ -78,6 +68,15 @@ elif FRONTEND_MOBILE_DIR.exists():
     @app.get("/")
     def root():
         return FileResponse(FRONTEND_MOBILE_DIR / "index.html")
+else:
+    @app.get("/")
+    def root():
+        return {
+            "app": "  Pointage API",
+            "version": "2.0.0",
+            "docs": "/docs",
+            "health": "/health",
+        }
 
 
 if FRONTEND_ADMIN_DIR.exists():
