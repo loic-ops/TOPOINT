@@ -1,25 +1,22 @@
-# Render Blueprint —   Pointage (100% Render + Supabase)
+# Render Blueprint —   Pointage (Docker)
 #
-# Ce fichier déclare les 3 services Render d'un coup.
-# Les variables sensibles (secrets, DATABASE_URL) doivent être
-# saisies manuellement dans le dashboard Render — jamais committées.
+# Ce fichier déclare le service Render en mode Docker.
+# Le Dockerfile build les 3 apps (backend + 2 frontends) en un seul container.
 #
 # Usage :
 #   1. Push le repo sur GitHub/GitLab
 #   2. Render Dashboard → New → Blueprint → sélectionner le repo
-#   3. Render détecte ce fichier et crée les 3 services
-#   4. Saisir les variables d'environnement manquantes dans chaque service
+#   3. Render détecte ce fichier et crée le service
+#   4. Saisir les variables d'environnement manquantes
 #   5. Redéployer
 
 services:
-  # ── Backend API (FastAPI) ──────────────────────────────────
+  # ── Application complète (Docker) ──────────────────────────
   - type: web
-    name: topointage-api
-    runtime: python
+    name: topoint
+    runtime: docker
     plan: free
-    rootDir: backend
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips='*'
+    dockerfilePath: Dockerfile
     envVars:
       - key: DEPLOY_MODE
         value: demo
@@ -29,35 +26,7 @@ services:
         sync: false  # Saisir l'URL pooler Supabase (port 6543)
       - key: DATABASE_URL_DIRECT
         sync: false  # Saisir l'URL directe Supabase (port 5432) — pour Alembic uniquement
-      - key: PYTHON_VERSION
-        value: "3.12"
       - key: TOKEN_EXPIRE_MINUTES
         value: "60"
       - key: CORS_ORIGINS
-        sync: false  # Saisir les URLs des 2 frontends Render (ex: https://topointage-mobile.onrender.com,https://topointage-admin.onrender.com)
-
-  # ── Frontend Mobile (PWA) — Static Site ───────────────────
-  - type: static
-    name: topointage-mobile
-    plan: free
-    rootDir: frontend-mobile
-    buildCommand: npm install && npm run build
-    staticPublishPath: dist
-    envVars:
-      - key: VITE_API_URL
-        sync: false  # Saisir l'URL du backend (ex: https://topointage-api.onrender.com)
-      - key: VITE_BASE_PATH
-        value: "/"
-
-  # ── Frontend Admin — Static Site ──────────────────────────
-  - type: static
-    name: topointage-admin
-    plan: free
-    rootDir: frontend-admin
-    buildCommand: npm install && npm run build
-    staticPublishPath: dist
-    envVars:
-      - key: VITE_API_URL
-        sync: false  # Saisir l'URL du backend (ex: https://topointage-api.onrender.com)
-      - key: VITE_BASE_PATH
-        value: "/"
+        value: "*"  # En Docker, les frontends sont servis par le même container
