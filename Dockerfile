@@ -35,8 +35,8 @@ COPY --from=frontend-builder /app/frontend-admin/dist frontend-admin/dist/
 # Variables d'environnement par défaut
 ENV PYTHONUNBUFFERED=1
 ENV DEPLOY_MODE=demo
-ENV PYTHONPATH=/app
+ENV PYTHONPATH=/app/backend
 
 EXPOSE 8000
 
-CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips=*"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips=*"]
