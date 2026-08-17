@@ -15,7 +15,6 @@ import {
   archivePointage,
   unarchivePointage,
   archivePointagesBulk,
-  resetDatabase,
 } from "./api.js";
 
 function formatDuration(seconds) {
@@ -736,7 +735,6 @@ function PointagesPage({ search }) {
   const [employees, setEmployees] = useState([]);
   const [exporting, setExporting] = useState(false);
   const [archiving, setArchiving] = useState(false);
-  const [resetting, setResetting] = useState(false);
   const now = new Date();
   const [filters, setFilters] = useState({
     employee_id: "",
@@ -851,20 +849,6 @@ function PointagesPage({ search }) {
     }
   };
 
-  const handleResetDB = async () => {
-    if (!confirm("REINITIALISER LA BASE ?\n\nTous les employes et pointages seront supprimes.\nSeul l'admin sera conserve.\n\nCette action est irreversible.")) return;
-    if (!confirm("Voulez-vous vraiment tout supprimer ?")) return;
-    setResetting(true);
-    try {
-      await resetDatabase();
-      load();
-    } catch (e) {
-      alert(e.message);
-    } finally {
-      setResetting(false);
-    }
-  };
-
   const isViewingArchives = filters.archived === "true";
 
   return (
@@ -885,14 +869,6 @@ function PointagesPage({ search }) {
             disabled={archiving || isViewingArchives}
           >
             {archiving ? "Archivage..." : "Archiver"}
-          </button>
-          <button
-            className="btn btn-danger"
-            onClick={handleResetDB}
-            disabled={resetting}
-            style={{ fontSize: "0.8rem" }}
-          >
-            {resetting ? "Reset..." : "Réinitialiser la base"}
           </button>
         </div>
       </div>
