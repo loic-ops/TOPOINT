@@ -116,3 +116,16 @@ export async function exportPointagesPDF(params = {}) {
   a.click();
   URL.revokeObjectURL(a.href);
 }
+
+export async function deletePointage(pointageId) {
+  return apiFetch(`/api/admin/pointages/${pointageId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function deletePointages(params = {}) {
+  const qs = new URLSearchParams(params).toString();
+  return apiFetch("/api/admin/pointages" + (qs ? "?" + qs : ""), {
+    method: "DELETE",
+  });
+}

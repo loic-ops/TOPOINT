@@ -12,6 +12,8 @@ import {
   getPointages,
   forceClockout,
   exportPointagesPDF,
+  deletePointage,
+  deletePointages,
 } from "./api.js";
 
 function formatDuration(seconds) {
@@ -722,20 +724,49 @@ function PresencesPage({ search }) {
   );
 }
 
+const MONTHS = [
+  "", "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+  "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
+];
+
 function PointagesPage({ search }) {
   const [pointages, setPointages] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [exporting, setExporting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const now = new Date();
   const [filters, setFilters] = useState({
+    employee_id: "",
+    month: String(now.getMonth() + 1),
+    year: String(now.getFullYear()),
     date_from: "",
     date_to: "",
     status: "",
   });
 
+  const loadEmployees = useCallback(async () => {
+    try {
+      setEmployees(await getEmployees());
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadEmployees();
+  }, [loadEmployees]);
+
   const load = useCallback(async () => {
     try {
       const params = {};
-      if (filters.date_from) params.date_from = filters.date_from;
-      if (filters.date_to) params.date_to = filters.date_to;
+      if (filters.employee_id) params.employee_id = filters.employee_id;
+      if (filters.month && filters.year) {
+        params.month = filters.month;
+        params.year = filters.year;
+      } else {
+        if (filters.date_from) params.date_from = filters.date_from;
+        if (filters.date_to) params.date_to = filters.date_to;
+      }
       if (filters.status) params.status = filters.status;
       setPointages(await getPointages(params));
     } catch (e) {
@@ -751,8 +782,14 @@ function PointagesPage({ search }) {
     setExporting(true);
     try {
       const params = {};
-      if (filters.date_from) params.date_from = filters.date_from;
-      if (filters.date_to) params.date_to = filters.date_to;
+      if (filters.employee_id) params.employee_id = filters.employee_id;
+      if (filters.month && filters.year) {
+        params.month = filters.month;
+        params.year = filters.year;
+      } else {
+        if (filters.date_from) params.date_from = filters.date_from;
+        if (filters.date_to) params.date_to = filters.date_to;
+      }
       await exportPointagesPDF(params);
     } catch (e) {
       alert(e.message);
@@ -761,37 +798,132 @@ function PointagesPage({ search }) {
     }
   };
 
+  const handleDeleteOne = async (id) => {
+    if (!confirm("Supprimer ce pointage ?")) return;
+    setDeleting(true);
+    try {
+      await deletePointage(id);
+      load();
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleDeleteBulk = async () => {
+    const label = filters.employee_id
+      ? "cet employé"
+      : `${MONTHS[filters.month]} ${filters.year}`;
+    if (!confirm(`Supprimer tous les pointages de ${label} ? Cette action est irréversible.`)) return;
+    setDeleting(true);
+    try {
+      const params = {};
+      if (filters.employee_id) params.employee_id = filters.employee_id;
+      if (filters.month && filters.year) {
+        params.month = filters.month;
+        params.year = filters.year;
+      } else {
+        if (filters.date_from) params.date_from = filters.date_from;
+        if (filters.date_to) params.date_to = filters.date_to;
+      }
+      await deletePointages(params);
+      load();
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <div className="page">
       <div className="page-header">
         <h1 className="page-title">Historique des pointages</h1>
-        <button
-          className="btn btn-primary"
-          onClick={handleExportPDF}
-          disabled={exporting}
-        >
-          {exporting ? "Export..." : "Exporter PDF"}
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            className="btn btn-primary"
+            onClick={handleExportPDF}
+            disabled={exporting}
+          >
+            {exporting ? "Export..." : "Exporter PDF"}
+          </button>
+          <button
+            className="btn btn-danger"
+            onClick={handleDeleteBulk}
+            disabled={deleting}
+          >
+            {deleting ? "Suppression..." : "Supprimer"}
+          </button>
+        </div>
       </div>
 
       <div className="table-card">
-        <div className="table-filters">
+        <div className="table-filters" style={{ flexWrap: "wrap", gap: 8 }}>
+          <select
+            className="filter-select"
+            value={filters.employee_id}
+            onChange={(e) =>
+              setFilters({ ...filters, employee_id: e.target.value })
+            }
+          >
+            <option value="">Tous les employés</option>
+            {employees.map((emp) => (
+              <option key={emp.id} value={emp.id}>
+                {emp.first_name} {emp.last_name} ({emp.matricule})
+              </option>
+            ))}
+          </select>
+
+          <select
+            className="filter-select"
+            value={filters.month}
+            onChange={(e) =>
+              setFilters({ ...filters, month: e.target.value, date_from: "", date_to: "" })
+            }
+          >
+            <option value="">Mois</option>
+            {MONTHS.map((name, i) =>
+              i > 0 ? <option key={i} value={i}>{name}</option> : null
+            )}
+          </select>
+
+          <select
+            className="filter-select"
+            value={filters.year}
+            onChange={(e) =>
+              setFilters({ ...filters, year: e.target.value, date_from: "", date_to: "" })
+            }
+          >
+            <option value="">Année</option>
+            {[2026, 2025, 2024, 2023].map((y) => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "0.8rem", color: "var(--text-muted)" }}>
+            ou
+          </div>
+
           <input
             type="date"
             className="filter-input"
             value={filters.date_from}
             onChange={(e) =>
-              setFilters({ ...filters, date_from: e.target.value })
+              setFilters({ ...filters, date_from: e.target.value, month: "", year: "" })
             }
+            placeholder="Date début"
           />
           <input
             type="date"
             className="filter-input"
             value={filters.date_to}
             onChange={(e) =>
-              setFilters({ ...filters, date_to: e.target.value })
+              setFilters({ ...filters, date_to: e.target.value, month: "", year: "" })
             }
+            placeholder="Date fin"
           />
+
           <select
             className="filter-select"
             value={filters.status}
@@ -804,6 +936,7 @@ function PointagesPage({ search }) {
             <option value="completed">Terminé</option>
             <option value="flagged">Anomalie</option>
           </select>
+
           <button className="btn btn-teal btn-sm" onClick={load}>
             Filtrer
           </button>
@@ -819,6 +952,7 @@ function PointagesPage({ search }) {
               <th>Pause</th>
               <th>Statut</th>
               <th>IP</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -868,11 +1002,21 @@ function PointagesPage({ search }) {
                 <td>
                   <code style={{ fontSize: "0.75rem" }}>{p.source_ip}</code>
                 </td>
+                <td>
+                  <button
+                    className="btn btn-danger btn-sm"
+                    disabled={deleting}
+                    onClick={() => handleDeleteOne(p.id)}
+                    title="Supprimer"
+                  >
+                    ✕
+                  </button>
+                </td>
               </tr>
             ))}
             {pointages.length === 0 && (
               <tr>
-                <td colSpan={7}>
+                <td colSpan={8}>
                     <div className="empty-state">
                       <p>Aucun pointage trouvé</p>
                     </div>
