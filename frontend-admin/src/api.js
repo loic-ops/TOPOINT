@@ -154,3 +154,20 @@ export async function resetDatabase() {
     method: "POST",
   });
 }
+
+export async function getSettings() {
+  return apiFetch("/api/admin/settings");
+}
+
+export async function updateSettings(settings) {
+  return apiFetch("/api/admin/settings", {
+    method: "PUT",
+    body: JSON.stringify({ settings }),
+  });
+}
+
+export async function triggerAutoClose() {
+  return apiFetch("/api/admin/settings/auto-close", {
+    method: "POST",
+  });
+}

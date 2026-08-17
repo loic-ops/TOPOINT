@@ -15,6 +15,9 @@ import {
   archivePointage,
   unarchivePointage,
   archivePointagesBulk,
+  getSettings,
+  updateSettings,
+  triggerAutoClose,
 } from "./api.js";
 
 function formatDuration(seconds) {
@@ -150,6 +153,7 @@ function Sidebar({ page, onNavigate }) {
     { key: "employees", label: "Employés" },
     { key: "presences", label: "Présences du jour" },
     { key: "pointages", label: "Historique pointages" },
+    { key: "settings", label: "Paramètres" },
   ];
 
   return (
@@ -1068,6 +1072,158 @@ function PointagesPage({ search }) {
   );
 }
 
+function SettingsPage() {
+  const [settings, setSettings] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  const load = useCallback(async () => {
+    try {
+      setSettings(await getSettings());
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const handleChange = (key, value) => {
+    setSettings((prev) => ({ ...prev, [key]: { ...prev[key], value } }));
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setMsg("");
+    try {
+      const payload = {};
+      for (const [k, v] of Object.entries(settings)) {
+        payload[k] = v.value;
+      }
+      await updateSettings(payload);
+      setMsg("Paramètres enregistrés");
+    } catch (e) {
+      setMsg("Erreur: " + e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAutoClose = async () => {
+    setClosing(true);
+    setMsg("");
+    try {
+      const res = await triggerAutoClose();
+      setMsg(res.detail);
+    } catch (e) {
+      setMsg("Erreur: " + e.message);
+    } finally {
+      setClosing(false);
+    }
+  };
+
+  if (!settings) return <div className="page">Chargement...</div>;
+
+  return (
+    <div className="page">
+      <div className="page-header">
+        <h1 className="page-title">Paramètres</h1>
+      </div>
+
+      <div className="table-card" style={{ maxWidth: 600 }}>
+        <h3 style={{ marginBottom: 16, color: "var(--navy)" }}>Horaires de travail</h3>
+
+        <div className="form-group">
+          <label>{settings.work_start_hour?.description}</label>
+          <input
+            type="time"
+            value={settings.work_start_hour?.value || "08:00"}
+            onChange={(e) => handleChange("work_start_hour", e.target.value)}
+          />
+        </div>
+
+        <div className="form-group">
+          <label>{settings.work_end_hour?.description}</label>
+          <input
+            type="time"
+            value={settings.work_end_hour?.value || "17:00"}
+            onChange={(e) => handleChange("work_end_hour", e.target.value)}
+          />
+        </div>
+
+        <div className="form-group">
+          <label>{settings.max_work_hours?.description}</label>
+          <input
+            type="number"
+            min="1"
+            max="24"
+            step="0.5"
+            value={settings.max_work_hours?.value || "8"}
+            onChange={(e) => handleChange("max_work_hours", e.target.value)}
+          />
+        </div>
+
+        <div className="form-group">
+          <label>{settings.max_break_minutes?.description}</label>
+          <input
+            type="number"
+            min="0"
+            max="480"
+            step="5"
+            value={settings.max_break_minutes?.value || "60"}
+            onChange={(e) => handleChange("max_break_minutes", e.target.value)}
+          />
+        </div>
+
+        <h3 style={{ margin: "20px 0 16px", color: "var(--navy)" }}>Fermeture automatique</h3>
+
+        <div className="form-group">
+          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={settings.auto_close_enabled?.value === "true"}
+              onChange={(e) =>
+                handleChange("auto_close_enabled", e.target.checked ? "true" : "false")
+              }
+            />
+            {settings.auto_close_enabled?.description}
+          </label>
+        </div>
+
+        <div className="form-group">
+          <label>{settings.auto_close_after_minutes?.description}</label>
+          <input
+            type="number"
+            min="30"
+            max="1440"
+            step="15"
+            value={settings.auto_close_after_minutes?.value || "720"}
+            onChange={(e) => handleChange("auto_close_after_minutes", e.target.value)}
+          />
+        </div>
+
+        <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
+          <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+            {saving ? "Enregistrement..." : "Enregistrer"}
+          </button>
+          <button className="btn btn-teal" onClick={handleAutoClose} disabled={closing}>
+            {closing ? "Vérification..." : "Vérifier maintenant"}
+          </button>
+        </div>
+
+        {msg && (
+          <p style={{ marginTop: 12, fontSize: "0.85rem", color: msg.startsWith("Erreur") ? "var(--red)" : "var(--teal)" }}>
+            {msg}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
 export default function App() {
   const [employee, setEmployee] = useState(() => {
     const saved = localStorage.getItem("adminEmployee");
@@ -1099,6 +1255,7 @@ export default function App() {
     employees: "Employés",
     presences: "Présences du jour",
     pointages: "Historique des pointages",
+    settings: "Paramètres",
   };
 
   return (
@@ -1132,6 +1289,7 @@ export default function App() {
         {page === "employees" && <EmployeesPage search={search} />}
         {page === "presences" && <PresencesPage search={search} />}
         {page === "pointages" && <PointagesPage search={search} />}
+        {page === "settings" && <SettingsPage />}
       </div>
     </div>
   );
