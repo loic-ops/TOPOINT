@@ -19,7 +19,23 @@ FRONTEND_ADMIN_DIR = BASE_DIR.parent / "frontend-admin" / "dist"
 @asynccontextmanager
 async def lifespan(app):
     Base.metadata.create_all(bind=engine)
+    _run_migrations()
     yield
+
+
+def _run_migrations():
+    from sqlalchemy import text
+    from app.database import SessionLocal
+    db = SessionLocal()
+    try:
+        db.execute(text(
+            "ALTER TABLE pointages ADD COLUMN IF NOT EXISTS is_archived BOOLEAN NOT NULL DEFAULT FALSE"
+        ))
+        db.commit()
+    except Exception:
+        pass
+    finally:
+        db.close()
 
 
 app = FastAPI(title="  Pointage", version="2.0.0", lifespan=lifespan)
