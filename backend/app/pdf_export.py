@@ -33,7 +33,7 @@ def _fmt_date(dt):
     return dt.strftime("%d/%m/%Y")
 
 
-def build_timesheet_pdf(pointages, date_from=None, date_to=None):
+def build_timesheet_pdf(pointages, date_from=None, date_to=None, period_label=None):
     tmp_path = tempfile.mktemp(suffix=".pdf")
 
     try:
@@ -64,15 +64,16 @@ def build_timesheet_pdf(pointages, date_from=None, date_to=None):
 
         elements = []
 
-        period_label = ""
-        if date_from and date_to:
-            period_label = f"Du {date_from} au {date_to}"
-        elif date_from:
-            period_label = f"Depuis le {date_from}"
-        elif date_to:
-            period_label = f"Jusqu'au {date_to}"
-        else:
-            period_label = "Toutes les periodes"
+        period_label = period_label or ""
+        if not period_label:
+            if date_from and date_to:
+                period_label = f"Du {date_from} au {date_to}"
+            elif date_from:
+                period_label = f"Depuis le {date_from}"
+            elif date_to:
+                period_label = f"Jusqu'au {date_to}"
+            else:
+                period_label = "Toutes les periodes"
 
         elements.append(Paragraph("Feuille de pointage", title_style))
         elements.append(Paragraph(

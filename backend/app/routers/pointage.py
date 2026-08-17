@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
+import calendar
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -189,6 +190,8 @@ def get_timesheet(
     employee_id: int | None = None,
     from_date: str | None = None,
     to_date: str | None = None,
+    month: int | None = Query(None, ge=1, le=12, description="Mois (1-12)"),
+    year: int | None = Query(None, ge=2020, le=2099, description="Annee"),
     request: Request = None,
     employee: Employee = Depends(get_current_employee),
     db: Session = Depends(get_db),
@@ -199,6 +202,11 @@ def get_timesheet(
         query = query.filter(Pointage.employee_id == employee_id)
     elif employee.role != "admin":
         query = query.filter(Pointage.employee_id == employee.id)
+
+    if month and year:
+        last_day = calendar.monthrange(year, month)[1]
+        from_date = f"{year}-{month:02d}-01"
+        to_date = f"{year}-{month:02d}-{last_day:02d}"
 
     if from_date:
         query = query.filter(Pointage.clock_in >= from_date)

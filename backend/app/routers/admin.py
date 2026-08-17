@@ -1,7 +1,8 @@
+import calendar
 from datetime import datetime, timedelta
 from io import BytesIO
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
@@ -170,6 +171,8 @@ def list_pointages(
     date_from: str | None = None,
     date_to: str | None = None,
     status: str | None = None,
+    month: int | None = Query(None, ge=1, le=12, description="Mois (1-12)"),
+    year: int | None = Query(None, ge=2020, le=2099, description="Annee"),
     admin: Employee = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
@@ -177,6 +180,12 @@ def list_pointages(
 
     if employee_id:
         query = query.filter(Pointage.employee_id == employee_id)
+
+    if month and year:
+        last_day = calendar.monthrange(year, month)[1]
+        date_from = f"{year}-{month:02d}-01"
+        date_to = f"{year}-{month:02d}-{last_day:02d}"
+
     if date_from:
         query = query.filter(Pointage.clock_in >= date_from)
     if date_to:
@@ -242,6 +251,8 @@ def export_pointages_pdf(
     date_from: str | None = None,
     date_to: str | None = None,
     employee_id: int | None = None,
+    month: int | None = Query(None, ge=1, le=12, description="Mois (1-12)"),
+    year: int | None = Query(None, ge=2020, le=2099, description="Annee"),
     admin: Employee = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
@@ -251,6 +262,12 @@ def export_pointages_pdf(
 
     if employee_id:
         query = query.filter(Pointage.employee_id == employee_id)
+
+    if month and year:
+        last_day = calendar.monthrange(year, month)[1]
+        date_from = f"{year}-{month:02d}-01"
+        date_to = f"{year}-{month:02d}-{last_day:02d}"
+
     if date_from:
         query = query.filter(Pointage.clock_in >= date_from)
     if date_to:
@@ -273,11 +290,74 @@ def export_pointages_pdf(
         r.status = p.status
         rows.append(r)
 
-    pdf_bytes = build_timesheet_pdf(rows, date_from, date_to)
+    period_label = ""
+    if month and year:
+        month_name = calendar.month_name[month]
+        period_label = f"{month_name} {year}"
+    elif date_from and date_to:
+        period_label = f"Du {date_from} au {date_to}"
+    elif date_from:
+        period_label = f"Depuis le {date_from}"
+    elif date_to:
+        period_label = f"Jusqu'au {date_to}"
+    else:
+        period_label = "Toutes les periodes"
 
-    filename = f"pointages_{date_from or 'all'}_{date_to or 'all'}.pdf"
+    pdf_bytes = build_timesheet_pdf(rows, date_from, date_to, period_label=period_label)
+
+    emp_suffix = f"_EMP{employee_id}" if employee_id else ""
+    filename = f"pointages{emp_suffix}_{date_from or 'all'}_{date_to or 'all'}.pdf"
     return StreamingResponse(
         iter([pdf_bytes]),
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.delete("/pointages/{pointage_id}")
+def delete_pointage(
+    pointage_id: int,
+    request: Request,
+    admin: Employee = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    pointage = db.query(Pointage).filter(Pointage.id == pointage_id).first()
+    if not pointage:
+        raise HTTPException(404, "Pointage introuvable")
+    db.delete(pointage)
+    db.commit()
+    return {"detail": "Pointage supprime"}
+
+
+@router.delete("/pointages")
+def delete_pointages(
+    request: Request,
+    employee_id: int | None = None,
+    month: int | None = Query(None, ge=1, le=12, description="Mois (1-12)"),
+    year: int | None = Query(None, ge=2020, le=2099, description="Annee"),
+    date_from: str | None = None,
+    date_to: str | None = None,
+    delete_all: bool = Query(False, description="Supprimer tous les pointages"),
+    admin: Employee = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    query = db.query(Pointage)
+
+    if not delete_all:
+        if employee_id:
+            query = query.filter(Pointage.employee_id == employee_id)
+        if month and year:
+            last_day = calendar.monthrange(year, month)[1]
+            date_from = f"{year}-{month:02d}-01"
+            date_to = f"{year}-{month:02d}-{last_day:02d}"
+        if date_from:
+            query = query.filter(Pointage.clock_in >= date_from)
+        if date_to:
+            query = query.filter(Pointage.clock_in <= date_to + "T23:59:59")
+        if not employee_id and not month and not year and not date_from and not date_to:
+            raise HTTPException(400, "Fournir au moins un filtre (employee_id, month/year, date_from/date_to) ou delete_all=true")
+
+    count = query.count()
+    query.delete(synchronize_session=False)
+    db.commit()
+    return {"detail": f"{count} pointage(s) supprime(s)"}
