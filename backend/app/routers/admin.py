@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.middleware import get_current_employee, require_admin
-from app.models import Employee, Pointage
+from app.models import Employee, Pointage, PinAttempt
 from app.schemas import (
     EmployeeCreate,
     EmployeeResponse,
@@ -173,10 +173,16 @@ def list_pointages(
     status: str | None = None,
     month: int | None = Query(None, ge=1, le=12, description="Mois (1-12)"),
     year: int | None = Query(None, ge=2020, le=2099, description="Annee"),
+    archived: bool | None = Query(None, description="true=archives, false=actifs, vide=tout"),
     admin: Employee = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
     query = db.query(Pointage)
+
+    if archived is None:
+        query = query.filter(Pointage.is_archived == False)
+    else:
+        query = query.filter(Pointage.is_archived == archived)
 
     if employee_id:
         query = query.filter(Pointage.employee_id == employee_id)
@@ -214,6 +220,7 @@ def list_pointages(
             "duration_seconds": duration,
             "source_ip": p.source_ip,
             "status": p.status,
+            "is_archived": p.is_archived,
         })
 
     return result
@@ -253,12 +260,13 @@ def export_pointages_pdf(
     employee_id: int | None = None,
     month: int | None = Query(None, ge=1, le=12, description="Mois (1-12)"),
     year: int | None = Query(None, ge=2020, le=2099, description="Annee"),
+    archived: bool = Query(False, description="Inclure les archives"),
     admin: Employee = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
     from app.pdf_export import build_timesheet_pdf
 
-    query = db.query(Pointage)
+    query = db.query(Pointage).filter(Pointage.is_archived == archived)
 
     if employee_id:
         query = query.filter(Pointage.employee_id == employee_id)
@@ -314,8 +322,8 @@ def export_pointages_pdf(
     )
 
 
-@router.delete("/pointages/{pointage_id}")
-def delete_pointage(
+@router.patch("/pointages/{pointage_id}/archive")
+def archive_pointage(
     pointage_id: int,
     request: Request,
     admin: Employee = Depends(require_admin),
@@ -324,40 +332,71 @@ def delete_pointage(
     pointage = db.query(Pointage).filter(Pointage.id == pointage_id).first()
     if not pointage:
         raise HTTPException(404, "Pointage introuvable")
-    db.delete(pointage)
+    pointage.is_archived = True
     db.commit()
-    return {"detail": "Pointage supprime"}
+    return {"detail": "Pointage archive"}
 
 
-@router.delete("/pointages")
-def delete_pointages(
+@router.patch("/pointages/{pointage_id}/unarchive")
+def unarchive_pointage(
+    pointage_id: int,
+    request: Request,
+    admin: Employee = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    pointage = db.query(Pointage).filter(Pointage.id == pointage_id).first()
+    if not pointage:
+        raise HTTPException(404, "Pointage introuvable")
+    pointage.is_archived = False
+    db.commit()
+    return {"detail": "Pointage restaure"}
+
+
+@router.patch("/pointages/archive")
+def archive_pointages_bulk(
     request: Request,
     employee_id: int | None = None,
     month: int | None = Query(None, ge=1, le=12, description="Mois (1-12)"),
     year: int | None = Query(None, ge=2020, le=2099, description="Annee"),
     date_from: str | None = None,
     date_to: str | None = None,
-    delete_all: bool = Query(False, description="Supprimer tous les pointages"),
     admin: Employee = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    query = db.query(Pointage)
+    query = db.query(Pointage).filter(Pointage.is_archived == False)
 
-    if not delete_all:
-        if employee_id:
-            query = query.filter(Pointage.employee_id == employee_id)
-        if month and year:
-            last_day = calendar.monthrange(year, month)[1]
-            date_from = f"{year}-{month:02d}-01"
-            date_to = f"{year}-{month:02d}-{last_day:02d}"
-        if date_from:
-            query = query.filter(Pointage.clock_in >= date_from)
-        if date_to:
-            query = query.filter(Pointage.clock_in <= date_to + "T23:59:59")
-        if not employee_id and not month and not year and not date_from and not date_to:
-            raise HTTPException(400, "Fournir au moins un filtre (employee_id, month/year, date_from/date_to) ou delete_all=true")
+    if employee_id:
+        query = query.filter(Pointage.employee_id == employee_id)
+    if month and year:
+        last_day = calendar.monthrange(year, month)[1]
+        date_from = f"{year}-{month:02d}-01"
+        date_to = f"{year}-{month:02d}-{last_day:02d}"
+    if date_from:
+        query = query.filter(Pointage.clock_in >= date_from)
+    if date_to:
+        query = query.filter(Pointage.clock_in <= date_to + "T23:59:59")
+    if not employee_id and not month and not year and not date_from and not date_to:
+        raise HTTPException(400, "Fournir au moins un filtre")
 
     count = query.count()
-    query.delete(synchronize_session=False)
+    query.update({Pointage.is_archived: True}, synchronize_session=False)
     db.commit()
-    return {"detail": f"{count} pointage(s) supprime(s)"}
+    return {"detail": f"{count} pointage(s) archive(s)"}
+
+
+@router.post("/reset-database")
+def reset_database(
+    request: Request,
+    admin: Employee = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    admin_id = admin.id
+
+    db.query(Pointage).filter(Pointage.employee_id != admin_id).delete(synchronize_session=False)
+
+    db.query(PinAttempt).delete(synchronize_session=False)
+
+    db.query(Employee).filter(Employee.id != admin_id).delete(synchronize_session=False)
+
+    db.commit()
+    return {"detail": "Base reinitialisee. Seul l'admin est conserve."}

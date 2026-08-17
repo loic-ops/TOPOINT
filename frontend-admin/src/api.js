@@ -129,3 +129,28 @@ export async function deletePointages(params = {}) {
     method: "DELETE",
   });
 }
+
+export async function archivePointage(pointageId) {
+  return apiFetch(`/api/admin/pointages/${pointageId}/archive`, {
+    method: "PATCH",
+  });
+}
+
+export async function unarchivePointage(pointageId) {
+  return apiFetch(`/api/admin/pointages/${pointageId}/unarchive`, {
+    method: "PATCH",
+  });
+}
+
+export async function archivePointagesBulk(params = {}) {
+  const qs = new URLSearchParams(params).toString();
+  return apiFetch("/api/admin/pointages/archive" + (qs ? "?" + qs : ""), {
+    method: "PATCH",
+  });
+}
+
+export async function resetDatabase() {
+  return apiFetch("/api/admin/reset-database", {
+    method: "POST",
+  });
+}

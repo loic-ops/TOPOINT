@@ -45,6 +45,7 @@ class Pointage(Base):
     source_ip = Column(String(45), nullable=False)
     device_fingerprint = Column(String(256), nullable=True)
     status = Column(String(20), default="in_progress", nullable=False)
+    is_archived = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     employee = relationship("Employee", back_populates="pointages")

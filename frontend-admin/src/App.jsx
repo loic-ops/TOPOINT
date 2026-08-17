@@ -12,8 +12,10 @@ import {
   getPointages,
   forceClockout,
   exportPointagesPDF,
-  deletePointage,
-  deletePointages,
+  archivePointage,
+  unarchivePointage,
+  archivePointagesBulk,
+  resetDatabase,
 } from "./api.js";
 
 function formatDuration(seconds) {
@@ -733,7 +735,8 @@ function PointagesPage({ search }) {
   const [pointages, setPointages] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [exporting, setExporting] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const now = new Date();
   const [filters, setFilters] = useState({
     employee_id: "",
@@ -742,6 +745,7 @@ function PointagesPage({ search }) {
     date_from: "",
     date_to: "",
     status: "",
+    archived: "",
   });
 
   const loadEmployees = useCallback(async () => {
@@ -768,6 +772,7 @@ function PointagesPage({ search }) {
         if (filters.date_to) params.date_to = filters.date_to;
       }
       if (filters.status) params.status = filters.status;
+      if (filters.archived !== "") params.archived = filters.archived;
       setPointages(await getPointages(params));
     } catch (e) {
       console.error(e);
@@ -790,6 +795,7 @@ function PointagesPage({ search }) {
         if (filters.date_from) params.date_from = filters.date_from;
         if (filters.date_to) params.date_to = filters.date_to;
       }
+      if (filters.archived === "true") params.archived = "true";
       await exportPointagesPDF(params);
     } catch (e) {
       alert(e.message);
@@ -798,25 +804,34 @@ function PointagesPage({ search }) {
     }
   };
 
-  const handleDeleteOne = async (id) => {
-    if (!confirm("Supprimer ce pointage ?")) return;
-    setDeleting(true);
+  const handleArchiveOne = async (id) => {
+    if (!confirm("Archiver ce pointage ?")) return;
+    setArchiving(true);
     try {
-      await deletePointage(id);
+      await archivePointage(id);
       load();
     } catch (e) {
       alert(e.message);
     } finally {
-      setDeleting(false);
+      setArchiving(false);
     }
   };
 
-  const handleDeleteBulk = async () => {
-    const label = filters.employee_id
-      ? "cet employé"
-      : `${MONTHS[filters.month]} ${filters.year}`;
-    if (!confirm(`Supprimer tous les pointages de ${label} ? Cette action est irréversible.`)) return;
-    setDeleting(true);
+  const handleUnarchiveOne = async (id) => {
+    setArchiving(true);
+    try {
+      await unarchivePointage(id);
+      load();
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setArchiving(false);
+    }
+  };
+
+  const handleArchiveBulk = async () => {
+    if (!confirm("Archiver tous les pointages de cette periode ?")) return;
+    setArchiving(true);
     try {
       const params = {};
       if (filters.employee_id) params.employee_id = filters.employee_id;
@@ -827,14 +842,30 @@ function PointagesPage({ search }) {
         if (filters.date_from) params.date_from = filters.date_from;
         if (filters.date_to) params.date_to = filters.date_to;
       }
-      await deletePointages(params);
+      await archivePointagesBulk(params);
       load();
     } catch (e) {
       alert(e.message);
     } finally {
-      setDeleting(false);
+      setArchiving(false);
     }
   };
+
+  const handleResetDB = async () => {
+    if (!confirm("REINITIALISER LA BASE ?\n\nTous les employes et pointages seront supprimes.\nSeul l'admin sera conserve.\n\nCette action est irreversible.")) return;
+    if (!confirm("Voulez-vous vraiment tout supprimer ?")) return;
+    setResetting(true);
+    try {
+      await resetDatabase();
+      load();
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  const isViewingArchives = filters.archived === "true";
 
   return (
     <div className="page">
@@ -849,11 +880,19 @@ function PointagesPage({ search }) {
             {exporting ? "Export..." : "Exporter PDF"}
           </button>
           <button
-            className="btn btn-danger"
-            onClick={handleDeleteBulk}
-            disabled={deleting}
+            className="btn btn-teal"
+            onClick={handleArchiveBulk}
+            disabled={archiving || isViewingArchives}
           >
-            {deleting ? "Suppression..." : "Supprimer"}
+            {archiving ? "Archivage..." : "Archiver"}
+          </button>
+          <button
+            className="btn btn-danger"
+            onClick={handleResetDB}
+            disabled={resetting}
+            style={{ fontSize: "0.8rem" }}
+          >
+            {resetting ? "Reset..." : "Réinitialiser la base"}
           </button>
         </div>
       </div>
@@ -937,6 +976,18 @@ function PointagesPage({ search }) {
             <option value="flagged">Anomalie</option>
           </select>
 
+          <select
+            className="filter-select"
+            value={filters.archived}
+            onChange={(e) =>
+              setFilters({ ...filters, archived: e.target.value })
+            }
+          >
+            <option value="">Actifs (masqués archives)</option>
+            <option value="false">Actifs uniquement</option>
+            <option value="true">Archivés uniquement</option>
+          </select>
+
           <button className="btn btn-teal btn-sm" onClick={load}>
             Filtrer
           </button>
@@ -966,7 +1017,7 @@ function PointagesPage({ search }) {
                 );
               })
               .map((p) => (
-              <tr key={p.id}>
+              <tr key={p.id} style={p.is_archived ? { opacity: 0.5 } : {}}>
                 <td>
                   <strong>{p.employee_name}</strong>
                   <br />
@@ -1003,14 +1054,25 @@ function PointagesPage({ search }) {
                   <code style={{ fontSize: "0.75rem" }}>{p.source_ip}</code>
                 </td>
                 <td>
-                  <button
-                    className="btn btn-danger btn-sm"
-                    disabled={deleting}
-                    onClick={() => handleDeleteOne(p.id)}
-                    title="Supprimer"
-                  >
-                    ✕
-                  </button>
+                  {p.is_archived ? (
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      disabled={archiving}
+                      onClick={() => handleUnarchiveOne(p.id)}
+                      title="Restaurer"
+                    >
+                      ↩
+                    </button>
+                  ) : (
+                    <button
+                      className="btn btn-teal btn-sm"
+                      disabled={archiving}
+                      onClick={() => handleArchiveOne(p.id)}
+                      title="Archiver"
+                    >
+                      ↦
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
