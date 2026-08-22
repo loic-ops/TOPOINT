@@ -1,0 +1,45 @@
+# ── Déploiement local TOPOINT (serveur Windows + Docker) ──────
+# Usage : docker compose up -d --build
+# L'app est ensuite joignable sur http://<IP-LAN-du-serveur>:8000
+# (uniquement depuis le réseau local — ne pas faire de port-forwarding
+# sur le routeur, sinon le filtre naturel par accessibilité saute).
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: topoint
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-topoint-local}
+      POSTGRES_DB: topoint
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U topoint -d topoint"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DEPLOY_MODE: local
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-local}
+      DATABASE_URL: postgresql://topoint:${POSTGRES_PASSWORD:-topoint-local}@db:5432/topoint
+      # Plage IP bureaux pour le flag "aux bureaux / à distance".
+      # Vide = auto-détection depuis le réseau du serveur.
+      # Exemple : ALLOWED_SUBNETS=192.168.1.0/24
+      ALLOWED_SUBNETS: ${ALLOWED_SUBNETS:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      TOKEN_EXPIRE_MINUTES: ${TOKEN_EXPIRE_MINUTES:-60}
+    ports:
+      # Bind sur toutes les interfaces LAN de la machine hôte.
+      # Pour restreindre à une IP précise : "192.168.1.10:8000:8000"
+      - "8000:8000"
+
+volumes:
+  pgdata:

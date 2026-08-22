@@ -33,10 +33,11 @@ COPY --from=frontend-builder /app/frontend-mobile/dist frontend-mobile/dist/
 COPY --from=frontend-builder /app/frontend-admin/dist frontend-admin/dist/
 
 # Variables d'environnement par défaut
+# deploy-local : mode LAN, les headers X-Forwarded-For ne sont pas dignes de confiance
 ENV PYTHONUNBUFFERED=1
-ENV DEPLOY_MODE=demo
+ENV DEPLOY_MODE=local
 ENV PYTHONPATH=/app/backend
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips=*"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

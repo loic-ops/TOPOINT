@@ -39,6 +39,18 @@ function Badge({ type, children }) {
   return <span className={`badge badge-${type}`}>{children}</span>;
 }
 
+function OfficeBadge({ pointage }) {
+  const inOffice = pointage.is_in_office;
+  if (inOffice === null || inOffice === undefined) {
+    return <Badge type="unknown">Indéterminé</Badge>;
+  }
+  return inOffice ? (
+    <Badge type="office">Aux bureaux</Badge>
+  ) : (
+    <Badge type="remote">À distance</Badge>
+  );
+}
+
 function LoginScreen({ onLogin }) {
   const [matricule, setMatricule] = useState("ADMIN001");
   const [pin, setPin] = useState("");
@@ -237,6 +249,7 @@ function DashboardPage({ search }) {
               <th>Heure d'arrivée</th>
               <th>Durée</th>
               <th>Statut</th>
+              <th>Lieu</th>
             </tr>
           </thead>
           <tbody>
@@ -296,6 +309,7 @@ function DashboardPage({ search }) {
                         <Badge type="flagged">Anomalie</Badge>
                       )}
                     </td>
+                    <td>{ptg ? <OfficeBadge pointage={ptg} /> : "—"}</td>
                   </tr>
                 );
               })}
@@ -982,7 +996,7 @@ function PointagesPage({ search }) {
               <th>Durée</th>
               <th>Pause</th>
               <th>Statut</th>
-              <th>IP</th>
+              <th>Lieu / IP</th>
               <th></th>
             </tr>
           </thead>
@@ -1031,6 +1045,8 @@ function PointagesPage({ search }) {
                   </Badge>
                 </td>
                 <td>
+                  <OfficeBadge pointage={p} />
+                  <br />
                   <code style={{ fontSize: "0.75rem" }}>{p.source_ip}</code>
                 </td>
                 <td>

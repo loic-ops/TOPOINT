@@ -1,85 +1,88 @@
 # Déploiement sur Windows
 
+> **Branche `deploy-local`** : déploiement local Docker (app + PostgreSQL local),
+> indépendant de la version en ligne (branche `main` → Render).
+
 ## Prérequis
-- Python 3.10+ installé et accessible via `python` en ligne de commande
-- Node.js 18+ avec `npm` en ligne de commande
-- Git (pour cloner le projet)
+- Docker Desktop pour Windows installé et démarré
 
-## Options de démarrage
+## Démarrage avec Docker (recommandé)
 
-### Option 1 : Double-cliquer `start.bat` (plus simple)
-Le script batch gère automatiquement :
-- Création et activation du virtualenv
-- Installation des dépendances Python
-- Build des apps mobiles et admin
-- Initialisation de la base de données
-- Démarrage du serveur
-
-**Inconvénient** : Les erreurs d'affichage peuvent être confuses si terminé trop vite.
-
-### Option 2 : Terminal/CMD
-```cmd
-cd C:\chemin\vers\TOPOINT
-start.bat
+```powershell
+git checkout deploy-local
+docker compose up -d --build
 ```
 
-### Option 3 : PowerShell (recommandé pour meilleur affichage)
+L'app démarre en mode local (`DEPLOY_MODE=local`) avec une base PostgreSQL
+locale persistante (volume `pgdata`).
+
+### Accès
+
+- **Mobile** : http://IP-du-serveur:8000/
+- **Admin** : http://IP-du-serveur:8000/admin/
+- **API health** : http://IP-du-serveur:8000/api/health
+
+> Trouve l'IP LAN du serveur avec `ipconfig` (ligne "Adresse IPv4").
+> Les employés doivent être connectés au **même réseau (WiFi bureaux)** pour pointer.
+
+### Vérification de l'IP des employés (aux bureaux / à distance)
+
+Chaque pointage enregistre l'IP source de l'appareil et un indicateur
+« Aux bureaux » / « À distance » visible dans l'admin (colonne *Lieu / IP*).
+
+- La plage de référence est détectée automatiquement depuis le réseau du serveur.
+- En conteneur Docker, il est recommandé de la définir explicitement dans un
+  fichier `.env` à côté du `docker-compose.yml` :
+
+```
+ALLOWED_SUBNETS=192.168.1.0/24
+SECRET_KEY=une-cle-secrete
+POSTGRES_PASSWORD=topoint-local
+```
+
+(remplace `192.168.1.0/24` par la plage réelle du réseau bureaux — visible via `ipconfig`)
+
+- **Diagnostic** : connecte-toi en admin sur
+  `http://IP-du-serveur:8000/api/admin/network-status` pour voir l'IP que le
+  serveur observe et la plage de référence détectée.
+
+> ⚠️ **Important — Docker Desktop et IP source** : selon la version de Docker
+> Desktop, l'IP des appareils clients peut apparaître comme celle de la passerelle
+> Docker (NAT) au lieu de leur vraie IP LAN. Dans ce cas :
+> 1. Vérifie avec `/api/admin/network-status` depuis un téléphone sur le WiFi bureaux ;
+> 2. Si l'IP affichée n'est pas l'IP réelle du téléphone (paramètres WiFi),
+>    utilise le démarrage natif ci-dessous (sans Docker) qui préserve les vraies IPs.
+
+> ⚠️ **Ne jamais configurer de port-forwarding** sur le routeur vers le port 8000 :
+> l'app doit rester joignable uniquement depuis le réseau local.
+
+### Démarrage natif (sans Docker — préserve les vraies IPs clientes)
+
+- Python 3.10+ et Node.js 18+ accessibles en ligne de commande
+
 ```powershell
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 .\start.ps1
 ```
 
-> ⚠️ Si tu as une erreur `"cannot be loaded because running scripts is disabled"`, exécute :
-> ```powershell
-> Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-> ```
+Le script gère virtualenv, dépendances, build des frontends et démarrage du serveur.
 
 ## Troubleshooting
 
-### Erreur : `python` non reconnu
-```
-À corriger : ajouter Python au PATH Windows
-1. Cherche "Variables d'environnement" dans le menu Démarrer
-2. Clique "Variables d'environnement"
-3. Sous "Variables système", clique "Modifier le PATH"
-4. Ajoute le dossier d'installation de Python (ex: C:\Users\YourUser\AppData\Local\Programs\Python\Python312)
-```
-
-### Erreur : `npm` non reconnu
-```
-Faut installer Node.js depuis https://nodejs.org (LTS recommandé)
-```
-
-### Erreur lors du build des apps
-```
-cd mobile-app
-npm install
-npm run build
-
-cd ..\admin-app
-npm install
-npm run build
-```
-
-### Erreur d'accès à la base de données
-```
-Supprime les fichiers :
-- backend\data.db
-- backend\data.db-shm
-- backend\data.db-wal
-
-Puis relance start.bat
-```
-
 ### Port 8000 déjà utilisé
+```powershell
+netstat -ano | findstr :8000
+docker compose down
 ```
-Modifie le port dans app.py ou termine les processus Python actifs
+
+### Réinitialiser la base locale
+```powershell
+docker compose down
+docker volume rm topoint_pgdata
+docker compose up -d --build
 ```
 
-## Accès
-
-- **Mobile** : http://tonIP:8000/mobile/
-- **Admin** : http://tonIP:8000/admin/
-- **API** : http://tonIP:8000/api/health
-
-> Trouve ton IP locale avec : `ipconfig` (cherche IPv4)
+### Voir les logs
+```powershell
+docker compose logs -f app
+```

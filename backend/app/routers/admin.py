@@ -22,8 +22,24 @@ from app.schemas import (
     DashboardResponse,
 )
 from app.utils import generate_salt, hash_pin
+from app.utils.ip import get_client_ip
+from app.middleware.network import get_office_networks, is_in_office
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
+
+
+@router.get("/network-status")
+def network_status(
+    request: Request,
+    admin: Employee = Depends(require_admin),
+):
+    """Diagnostic réseau : IP client vue par le serveur, plage bureaux, présence."""
+    client_ip = get_client_ip(request)
+    return {
+        "client_ip": client_ip,
+        "office_networks": get_office_networks(),
+        "is_in_office": is_in_office(client_ip),
+    }
 
 
 @router.get("/dashboard", response_model=DashboardResponse)
@@ -219,6 +235,9 @@ def list_pointages(
             "total_break_seconds": p.total_break_seconds,
             "duration_seconds": duration,
             "source_ip": p.source_ip,
+            "is_in_office": p.is_in_office,
+            "clock_out_ip": p.clock_out_ip,
+            "clock_out_in_office": p.clock_out_in_office,
             "status": p.status,
             "is_archived": p.is_archived,
         })

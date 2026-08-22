@@ -289,6 +289,9 @@ tr:hover td { background: #F9FAFB; }
 .badge-break { background: var(--amber-light); color: #92400E; }
 .badge-offline { background: #F3F4F6; color: #6B7280; }
 .badge-flagged { background: var(--red-light); color: #991B1B; }
+.badge-office { background: #D1FAE5; color: #065F46; }
+.badge-remote { background: var(--amber-light); color: #92400E; }
+.badge-unknown { background: #F3F4F6; color: #6B7280; }
 
 /* ===== MODAL ===== */
 .modal-bg {

@@ -48,9 +48,20 @@ def _run_migrations():
         db.execute(text(
             "ALTER TABLE pointages ADD COLUMN IF NOT EXISTS is_archived BOOLEAN NOT NULL DEFAULT FALSE"
         ))
+        db.execute(text(
+            "ALTER TABLE pointages ADD COLUMN IF NOT EXISTS is_in_office BOOLEAN"
+        ))
+        db.execute(text(
+            "ALTER TABLE pointages ADD COLUMN IF NOT EXISTS clock_out_ip VARCHAR(45)"
+        ))
+        db.execute(text(
+            "ALTER TABLE pointages ADD COLUMN IF NOT EXISTS clock_out_in_office BOOLEAN"
+        ))
         db.commit()
     except Exception:
-        pass
+        # SQLite ne supporte pas IF NOT EXISTS sur ADD COLUMN :
+        # les nouvelles bases créées par create_all contiennent déjà les colonnes.
+        db.rollback()
     finally:
         db.close()
 

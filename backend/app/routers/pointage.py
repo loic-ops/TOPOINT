@@ -14,6 +14,7 @@ from app.schemas import (
 )
 from app.utils import create_session_token
 from app.utils.ip import get_client_ip
+from app.middleware.network import is_in_office
 
 router = APIRouter(prefix="/api/pointage", tags=["pointage"])
 
@@ -63,6 +64,7 @@ def clock_in(
         employee_id=employee.id,
         clock_in=datetime.utcnow(),
         source_ip=client_ip,
+        is_in_office=is_in_office(client_ip),
         device_fingerprint=body.device_fingerprint,
         status="in_progress",
     )
@@ -82,7 +84,10 @@ def clock_out(
     if not pointage:
         raise HTTPException(400, "Aucun pointage en cours")
 
+    client_ip = get_client_ip(request)
     pointage.clock_out = datetime.utcnow()
+    pointage.clock_out_ip = client_ip
+    pointage.clock_out_in_office = is_in_office(client_ip)
 
     if pointage.break_start and not pointage.break_end:
         pointage.break_end = datetime.utcnow()
@@ -234,6 +239,9 @@ def get_timesheet(
             "total_break_seconds": p.total_break_seconds,
             "duration_seconds": duration,
             "source_ip": p.source_ip,
+            "is_in_office": p.is_in_office,
+            "clock_out_ip": p.clock_out_ip,
+            "clock_out_in_office": p.clock_out_in_office,
             "status": p.status,
         })
 

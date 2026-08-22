@@ -39,6 +39,9 @@ class PointageResponse(BaseModel):
     break_end: datetime | None
     total_break_seconds: int
     source_ip: str
+    is_in_office: bool | None = None
+    clock_out_ip: str | None = None
+    clock_out_in_office: bool | None = None
     status: str
 
     class Config:
@@ -116,6 +119,9 @@ class PointageListResponse(BaseModel):
     total_break_seconds: int
     duration_seconds: int | None
     source_ip: str
+    is_in_office: bool | None = None
+    clock_out_ip: str | None = None
+    clock_out_in_office: bool | None = None
     status: str
 
     class Config:
