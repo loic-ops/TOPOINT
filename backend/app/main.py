@@ -35,9 +35,29 @@ async def _auto_close_loop():
 async def lifespan(app):
     Base.metadata.create_all(bind=engine)
     _run_migrations()
+    _seed_default_admin()
     task = asyncio.create_task(_auto_close_loop())
     yield
     task.cancel()
+
+
+def _seed_default_admin():
+    """Crée l'admin par défaut (ADMIN001/1234) si la base est vide."""
+    from app.database import SessionLocal
+    from app.models import Employee
+    from app.utils import generate_salt, hash_pin
+    db = SessionLocal()
+    try:
+        if db.query(Employee).count() == 0:
+            salt = generate_salt()
+            db.add(Employee(
+                matricule="ADMIN001", first_name="Admin", last_name=" ",
+                role="admin", pin_hash=hash_pin("1234", salt), salt=salt,
+                is_active=True,
+            ))
+            db.commit()
+    finally:
+        db.close()
 
 
 def _run_migrations():

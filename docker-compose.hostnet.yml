@@ -1,0 +1,26 @@
+# ── Override : mode réseau host (IPs clientes réelles) ─────────
+# Usage : docker compose -f docker-compose.yml -f docker-compose.hostnet.yml up -d --build
+#
+# Nécessite l'option "Host networking" activée dans Docker Desktop :
+# Settings → Resources → Network → Enable host networking
+# (Docker Desktop 4.34+, redémarrer Docker après activation)
+#
+# Principe : l'app partage la pile réseau de la machine hôte → elle voit
+# les vraies IPs des téléphones/PC du réseau bureaux, et l'auto-détection
+# de la plage IP fonctionne. Vérifier ensuite avec :
+#   http://IP-du-serveur:8000/api/admin/network-status
+#
+# En mode bridge standard (sans cet override), Docker NATe les connexions :
+# toutes les IPs apparaissent comme la passerelle interne → le lieu des
+# pointages est "Indéterminé".
+
+services:
+  db:
+    ports:
+      - "127.0.0.1:5432:5432"
+
+  app:
+    network_mode: host
+    ports: !reset []
+    environment:
+      DATABASE_URL: postgresql://topoint:${POSTGRES_PASSWORD:-topoint-local}@127.0.0.1:5432/topoint

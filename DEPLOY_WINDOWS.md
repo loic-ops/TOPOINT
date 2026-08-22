@@ -46,17 +46,38 @@ POSTGRES_PASSWORD=topoint-local
   `http://IP-du-serveur:8000/api/admin/network-status` pour voir l'IP que le
   serveur observe et la plage de référence détectée.
 
-> ⚠️ **Important — Docker Desktop et IP source** : selon la version de Docker
-> Desktop, l'IP des appareils clients peut apparaître comme celle de la passerelle
-> Docker (NAT) au lieu de leur vraie IP LAN. Dans ce cas :
-> 1. Vérifie avec `/api/admin/network-status` depuis un téléphone sur le WiFi bureaux ;
-> 2. Si l'IP affichée n'est pas l'IP réelle du téléphone (paramètres WiFi),
->    utilise le démarrage natif ci-dessous (sans Docker) qui préserve les vraies IPs.
+> ⚠️ **Important — Docker Desktop et IP source (NAT)** : en mode standard
+> (bridge + ports publiés), Docker Desktop NATe toutes les connexions entrantes :
+> l'app voit la passerelle interne (ex. `192.168.65.1`) au lieu de la vraie IP
+> de chaque téléphone → le lieu « Aux bureaux / À distance » reste
+> « Indéterminé ». Deux solutions pour obtenir les vraies IPs :
+>
+> 1. **Mode host networking (recommandé)** — activer dans Docker Desktop :
+>    Settings → Resources → Network → **Enable host networking** (4.34+),
+>    redémarrer Docker, puis :
+>    ```powershell
+>    docker compose -f docker-compose.yml -f docker-compose.hostnet.yml up -d --build
+>    ```
+>    L'app partage alors le réseau de la machine et voit les vraies IPs clientes.
+>
+> 2. **Démarrage natif (sans Docker)** — `.\start.ps1` — garantit les vraies IPs.
+>
+> **Vérification** : depuis un téléphone sur le WiFi bureaux, ouvre
+> `http://IP-du-serveur:8000/api/admin/network-status` (connecté en admin) :
+> `client_ip` doit être l'IP réelle du téléphone (voir dans ses réglages WiFi).
+> Si c'est une IP du type `192.168.65.1`, le NAT est encore actif.
 
 > ⚠️ **Ne jamais configurer de port-forwarding** sur le routeur vers le port 8000 :
 > l'app doit rester joignable uniquement depuis le réseau local.
 
 ### Démarrage natif (sans Docker — préserve les vraies IPs clientes)
+
+> ⚠️ Vérifie d'abord qu'aucun ancien serveur n'occupe le port 8000 :
+> ```powershell
+> netstat -ano | findstr :8000
+> ```
+> (un processus `uvicorn` ou `python` qui écouterait encore doit être terminé
+> via le Gestionnaire des tâches, sinon c'est lui qui répond à la place)
 
 - Python 3.10+ et Node.js 18+ accessibles en ligne de commande
 
